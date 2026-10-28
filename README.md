@@ -29,9 +29,12 @@ Du brauchst genau ein kostenloses Cloudflare-Konto. Keinen Server, keine Kreditk
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Das-L1/nexus-light)
 
-Dafür brauchst du ein kostenloses Cloudflare- und ein kostenloses GitHub- (oder GitLab-) Konto. Wenn
-danach gefragt wird, setze das Secret `OWNER_PASSWORD`: Es schützt deine Dokumente und die Verbindung
-zur KI.
+Dafür brauchst du ein kostenloses Cloudflare- und ein kostenloses GitHub- (oder GitLab-) Konto.
+
+1. **Git account:** Wähl dein **eigenes** GitHub-Konto. Steht dort eine Organisation, stell es im Auswahlfeld um.
+2. **Project name:** frei wählbar. Hast du schon eine Nexus-Instanz, nimm einen **anderen Namen**, sonst wird sie überschrieben.
+3. **OWNER_PASSWORD:** ein langes Passwort, das du dir merkst. Es schützt deine Dokumente, und du brauchst es beim Verbinden der KI.
+4. **Deploy.** Der erste Build dauert 1 bis 3 Minuten.
 
 ### Weg 2: Kommandozeile
 
@@ -47,12 +50,19 @@ Dein Nexus läuft dann unter `https://nexus-light.<deine-subdomain>.workers.dev`
 
 ### KI verbinden
 
-| Client | Wo | Adresse |
-|---|---|---|
-| ChatGPT | Plugins → Hinzufügen → Server-URL, Authentifizierung OAuth | `https://…workers.dev/mcp` |
-| Claude | Einstellungen → Connectors → Eigenen Connector hinzufügen | `https://…workers.dev/mcp` |
+**ChatGPT** (geht auch im Gratis-Tarif):
 
-Es öffnet sich eine Nexus-Light-Seite: Besitzer-Passwort eingeben und den Zugriff erlauben.
+1. Öffne direkt das Formular: **<https://chatgpt.com/#settings/Connectors?create-connector=true>**
+   (Nicht über „Plugins → + → Plugin erstellen“: Das öffnet den *Plugin Creator*, einen Chat, nicht das Formular.)
+   Erscheint kein Formular, schalte zuerst den **Entwicklermodus** ein: Einstellungen → Plugins → *Entwicklermodus*. Das gilt pro ChatGPT-Konto; prüf unten links, mit welchem Konto du angemeldet bist.
+2. **Name:** z. B. „Nexus Light“. **Verbindung:** Server-URL `https://<deine-instanz>.workers.dev/mcp`
+3. **Authentifizierung:** OAuth. Bei „Erweiterte OAuth-Einstellungen“ nichts ändern (ChatGPT erkennt *Dynamische Client-Registrierung* selbst; der Hinweis „CIMD nicht verfügbar“ ist normal).
+4. Haken bei „Ich verstehe …“, dann **Erstellen**.
+5. Es öffnet sich die Nexus-Light-Seite: dein **OWNER_PASSWORD** eingeben und **Erlauben**.
+
+**Claude:** Einstellungen → Connectors → *Eigenen Connector hinzufügen* → `https://<deine-instanz>.workers.dev/mcp`, dann wie oben anmelden.
+
+Testen: Schreib der KI *„Ruf nexus_status auf“*. Sie sollte die Version und ihren Namen in Dokumenten nennen.
 
 ### Was der Agent kann
 
@@ -79,6 +89,22 @@ Der Agent schreibt in Markdown: `#` Überschriften, `-`/`1.` Listen, `>` Zitate,
 ### ByCS verbinden
 
 In Nexus Light: Dokumentliste → **Einstellungen** → Schulnummer (steht in deiner Drive-Adresse, z. B. `0284.drive.bycs.de`), Benutzername und Passwort → **Verbinden und testen**. Die Anmeldung wird sofort geprüft; das Passwort wird verschlüsselt in deinem Cloudflare-Konto gespeichert (Schlüssel aus deinem Nexus-Passwort). Danach kann der Agent Drive und Lernplattform nutzen, und jeden Montag (03:00 UTC) landet ein Backup im Ordner `cowork Dateien backup`.
+
+## Häufige Probleme
+
+| Problem | Lösung |
+|---|---|
+| In ChatGPT gibt es kein Formular für eigene Server | Direktlink oben nutzen; sonst Entwicklermodus einschalten (pro Konto) |
+| „Plugin erstellen“ öffnet einen Chat | Das ist der *Plugin Creator*, nicht das richtige Formular: Direktlink nutzen |
+| Deploy: Fehler `10034` | Die E-Mail-Adresse bei Cloudflare ist noch nicht bestätigt |
+| Deploy: GitHub zeigt nur Repos einer Organisation | Im Auswahlfeld dein eigenes Konto wählen |
+| Deploy hat meine bestehende Instanz überschrieben | Beim Deploy immer einen neuen Projektnamen wählen |
+| „Falsches Passwort“ beim Verbinden der KI | Gemeint ist das `OWNER_PASSWORD` *dieser* Instanz (beim Deploy gesetzt); ändern im Cloudflare-Dashboard unter Settings → Variables and Secrets |
+| Die KI kennt neue Werkzeuge nicht | Nach einem Update das Plugin/den Connector in ChatGPT bzw. Claude einmal aktualisieren oder neu verbinden |
+| Editor zeigt dauerhaft „verbinde …“ | WebSockets werden blockiert (Werbeblocker, Schul-WLAN): anderes Netz oder anderen Browser probieren |
+| ByCS: „noch nicht verbunden“ | Dokumentliste → Einstellungen → ByCS verbinden |
+| ByCS geht nach Passwortänderung nicht mehr | Die ByCS-Daten sind mit dem Nexus-Passwort verschlüsselt: in den Einstellungen neu verbinden |
+| Neue Adresse lädt direkt nach dem ersten Deploy nicht | 1 bis 2 Minuten warten, eine neue `workers.dev`-Adresse braucht kurz im DNS |
 
 ## Warum es gratis und leicht bleibt
 
@@ -169,8 +195,12 @@ You need exactly one free Cloudflare account. No server, no credit card.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Das-L1/nexus-light)
 
-Needs a free Cloudflare and a free GitHub (or GitLab) account. When asked, set the secret
-`OWNER_PASSWORD`: it protects your documents and the AI connection.
+Needs a free Cloudflare and a free GitHub (or GitLab) account.
+
+1. **Git account:** pick your **own** GitHub account. If it shows an organization, switch it in the dropdown.
+2. **Project name:** anything. If you already run a Nexus instance, use a **different name**, or it gets overwritten.
+3. **OWNER_PASSWORD:** a long password you will remember. It protects your documents and you need it to connect your AI.
+4. **Deploy.** The first build takes 1 to 3 minutes.
 
 ### Option 2: Command line
 
@@ -186,12 +216,19 @@ Your Nexus is now at `https://nexus-light.<your-subdomain>.workers.dev`.
 
 ### Connect your AI
 
-| Client | Where | Address |
-|---|---|---|
-| ChatGPT | Plugins → Add → Server URL, authentication OAuth | `https://…workers.dev/mcp` |
-| Claude | Settings → Connectors → Add custom connector | `https://…workers.dev/mcp` |
+**ChatGPT** (works on the free plan too):
 
-A Nexus Light page opens: enter your owner password and allow access.
+1. Open the form directly: **<https://chatgpt.com/#settings/Connectors?create-connector=true>**
+   (Not via "Plugins → + → Create plugin": that opens the *Plugin Creator*, a chat, not the form.)
+   If no form appears, turn on **developer mode** first: Settings → Plugins → *Developer mode*. It is per ChatGPT account; check at the bottom left which account you are signed in with.
+2. **Name:** e.g. "Nexus Light". **Connection:** server URL `https://<your-instance>.workers.dev/mcp`
+3. **Authentication:** OAuth. Leave the advanced OAuth settings alone (ChatGPT detects *dynamic client registration*; "CIMD not available" is normal).
+4. Tick "I understand …", then **Create**.
+5. The Nexus Light page opens: enter your **OWNER_PASSWORD** and **allow** access.
+
+**Claude:** Settings → Connectors → *Add custom connector* → `https://<your-instance>.workers.dev/mcp`, then sign in as above.
+
+Test: ask the AI to *"call nexus_status"*. It should report the version and its name in documents.
 
 ### What the agent can do
 
@@ -218,6 +255,22 @@ The agent writes markdown: `#` headings, `-`/`1.` lists, `>` quotes, `| tables |
 ### Connect ByCS
 
 In Nexus Light: document list → **Einstellungen** (settings) → school number (part of your Drive address, e.g. `0284.drive.bycs.de`), username and password → **Verbinden und testen**. The login is checked right away; the password is stored encrypted in your Cloudflare account (key derived from your Nexus password). Then the agent can use Drive and Lernplattform, and every Monday (03:00 UTC) a backup goes into the folder `cowork Dateien backup`.
+
+## Common problems
+
+| Problem | Fix |
+|---|---|
+| ChatGPT shows no form for custom servers | Use the direct link above; otherwise turn on developer mode (per account) |
+| "Create plugin" opens a chat | That is the *Plugin Creator*, not the right form: use the direct link |
+| Deploy error `10034` | Your Cloudflare email address is not confirmed yet |
+| Deploy: GitHub only lists an organization's repos | Pick your own account in the dropdown |
+| Deploy overwrote my existing instance | Always choose a new project name when deploying |
+| "Falsches Passwort" when connecting the AI | It is the `OWNER_PASSWORD` of *this* instance (set during deploy); change it in the Cloudflare dashboard under Settings → Variables and Secrets |
+| The AI doesn't know new tools | After an update, refresh or reconnect the plugin/connector once in ChatGPT or Claude |
+| Editor stays on "verbinde …" | WebSockets are blocked (ad blocker, school Wi-Fi): try another network or browser |
+| ByCS: "noch nicht verbunden" | Document list → Einstellungen → connect ByCS |
+| ByCS stops working after a password change | The ByCS login is encrypted with the Nexus password: connect again in the settings |
+| A new address does not load right after the first deploy | Wait 1 to 2 minutes; a new `workers.dev` address needs a moment in DNS |
 
 ## How it stays free and light
 

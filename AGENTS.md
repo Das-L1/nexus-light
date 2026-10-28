@@ -21,7 +21,8 @@ time. Check each step before moving on. They may be a student without technical 
 
 - **Deploy button** (recommended, no computer skills needed): open
   `https://deploy.workers.cloudflare.com/?url=https://github.com/Das-L1/nexus-light`, connect GitHub,
-  keep the suggested names, and set `OWNER_PASSWORD` when asked. Tell them to pick a long password
+  pick their **own** account (not an organization), and set `OWNER_PASSWORD` when asked. If they
+  already have an instance, they must choose a **different project name**, or it gets overwritten. Tell them to pick a long password
   they can remember or store in a password manager: it protects all their documents.
 - **Command line** (has Node.js 20+):
   ```sh
@@ -49,7 +50,7 @@ If the address does not load right after the first deploy, wait 1 to 2 minutes: 
 
 | Client | Steps |
 |---|---|
-| ChatGPT | chatgpt.com → Plugins → *Hinzufügen/Add* → Server URL `https://…workers.dev/mcp`, authentication **OAuth**, accept the risk notice → connect |
+| ChatGPT | Open `https://chatgpt.com/#settings/Connectors?create-connector=true` (the form). If no form shows, enable Settings → Plugins → *Entwicklermodus/Developer mode* first (per account; check which account is signed in, bottom left). Do **not** use "Plugins → + → Plugin erstellen": that opens the Plugin Creator chat. Server URL `https://…workers.dev/mcp`, authentication **OAuth**, leave advanced OAuth settings as detected (DCR; "CIMD not available" is fine), tick the risk notice → *Erstellen/Create* |
 | Claude | Settings → Connectors → *Add custom connector* → URL `https://…workers.dev/mcp` |
 
 A Nexus Light page opens: they enter the owner password and click *Erlauben/Allow*. Then call
@@ -79,6 +80,8 @@ two-factor login.
 | Symptom | Cause and fix |
 |---|---|
 | Deploy error `10034` | Cloudflare email not confirmed: click the link in the confirmation mail |
+| GitHub list shows an organization's repos | Switch the account dropdown to their own account |
+| New tools missing in ChatGPT/Claude after an update | Refresh or reconnect the plugin/connector once |
 | Deploy asks to register a `workers.dev` subdomain | Pick any name; it becomes part of the address |
 | *Falsches Passwort* on the consent page | Wrong owner password. Reset it with `wrangler secret put OWNER_PASSWORD` or in the dashboard |
 | ChatGPT/Claude: connection fails | Address must end in `/mcp`; authentication must be OAuth |
