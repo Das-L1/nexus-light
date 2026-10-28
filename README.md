@@ -86,6 +86,7 @@ Wöchentliches ByCS-Backup: Cron `0 3 * * 1` (montags 03:00 UTC), in den Ordner 
 - Jedes Dokument ist ein Durable Object, das schläft, solange niemand tippt (WebSocket-Hibernation).
 - .docx-Export und Backups entstehen in Durable Objects, nicht im Worker mit seinem 10-ms-Limit.
 - Gemessen: Seitenaufruf ca. 2 ms CPU, MCP-Aufruf ca. 4 ms, jeder Tastendruck ca. 2 ms im Dokument.
+- Im Browser (Galaxy Tab S8 Ultra, Chrome): 2–3 MB JavaScript-Speicher für ein Referat mit Tabelle und Kommentar; während der Agent live tippt, ca. 13 % eines Prozessorkerns.
 
 ## Backups
 
@@ -223,6 +224,7 @@ Weekly ByCS backup: cron `0 3 * * 1` (Mondays 03:00 UTC), into the folder `cowor
 - Each document is a Durable Object that sleeps while nobody types (WebSocket hibernation).
 - .docx export and backups are built inside Durable Objects, not in the 10 ms worker.
 - Measured: page loads ~2 ms CPU, MCP calls ~4 ms, each keystroke ~2 ms in the document object.
+- In the browser (Galaxy Tab S8 Ultra, Chrome): 2–3 MB of JavaScript memory for a short paper with a table and a comment; about 13 % of one CPU core while the agent types live.
 
 ## Backups
 
