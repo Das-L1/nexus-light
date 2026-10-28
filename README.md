@@ -2,6 +2,10 @@
 
 **Deutsch** · [English](#english)
 
+> **Tipp:** Lass dir beim Einrichten von deinem KI-Assistenten helfen. Schick ChatGPT oder Claude den
+> Link zu dieser Seite und schreib: *„Hilf mir, Nexus Light einzurichten. Die Anleitung für dich steht
+> in AGENTS.md.“* Der Agent führt dich Schritt für Schritt durch.
+
 **Live mit deinem KI-Agenten zusammenarbeiten.** Ein kleines Office und MCP-Server, den du selbst
 betreibst, kostenlos, bei Cloudflare. Du schreibst im Browser, ChatGPT oder Claude schreiben live mit,
 mit eigenem Cursor, Namen und Kommentaren.
@@ -135,6 +139,10 @@ Aufbau: `src/index.ts` (MCP-Werkzeuge, OAuth), `src/web.ts` (Seiten, Zugriff), `
 # Nexus Light (English)
 
 [Deutsch](#nexus-light) · **English**
+
+> **Tip:** Let your AI assistant help you set it up. Send ChatGPT or Claude the link to this page and
+> write: *"Help me set up Nexus Light. Your instructions are in AGENTS.md."* It will walk you through
+> step by step.
 
 **Live collaboration with your agent.** A small office and MCP server you host yourself, for free, on
 Cloudflare. Write documents in the browser and watch ChatGPT or Claude edit them live, with their own
