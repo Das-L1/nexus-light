@@ -3,7 +3,7 @@
   "version": "0.4.0",
   "description": "Live collaboration with your agent: a self-hosted office and MCP server on Cloudflare's free tier",
   "scripts": {
-    "build": "node node_modules/esbuild/bin/esbuild client/editor.ts --bundle --minify --format=iife --target=es2020 --outfile=public/editor.js",
+    "build": "node build.mjs",
     "build:client": "npm run build",
     "deploy": "npm run build && wrangler deploy"
   },
