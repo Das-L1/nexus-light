@@ -1,5 +1,5 @@
 import { storeStub, docStub } from "./region";
-import { testLogin, BACKUP_FOLDER } from "./bycs";
+import { testLogin, displayName, BACKUP_FOLDER } from "./bycs";
 // Human side: owner sign-in, document list, the editor page, share links and the editor WebSocket.
 const enc = new TextEncoder();
 export const esc = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -89,6 +89,9 @@ body{display:flex;flex-direction:column;background:var(--canvas);color:var(--fg)
 #ribbon select{height:28px;font:13px system-ui,sans-serif;color:var(--fg);background:var(--ribbon);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin:0 1px}
 .colorbtn{position:relative}.colorbtn span{border-bottom:3px solid var(--c);line-height:1.1;font-weight:700}
 .colorbtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+#namebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 14px;background:color-mix(in srgb,var(--acc) 12%,var(--ribbon));border-bottom:1px solid var(--line);font:13px system-ui,sans-serif}
+#namebar input{font:13px system-ui,sans-serif;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--ribbon);color:var(--fg);width:180px}
+#namebar button{font:13px system-ui,sans-serif;padding:6px 12px;border-radius:6px;border:0;background:var(--acc);color:#fff;cursor:pointer}#namebar .skip{background:none;color:var(--fg);border:1px solid var(--line)}
 #canvas{flex:1;overflow:auto;padding:28px 16px 60px;display:flex;justify-content:center;align-items:flex-start;gap:18px}
 #comments{width:290px;flex:none;position:sticky;top:0;display:grid;gap:10px;font:13px/1.45 system-ui,sans-serif}
 #comments[hidden]{display:none}
@@ -223,8 +226,8 @@ const ago = (iso: string) => {
 
 function homePage(origin: string, docs: { id: string; title: string; updated: string }[], bycs: BycsStatus) {
   const bycsCard = bycs
-    ? `<section class="bycs on"><div class="ic">ByCS</div><div class="tx"><b>BayernCloud Schule verbunden</b><span>${esc(bycs.user)} · Schule ${esc(bycs.school)} · Letztes Drive-Backup: ${bycs.lastBackup ? ago(bycs.lastBackup) : "noch keins"}</span></div>
-<form method="post" action="/backup/bycs" style="margin:0"><button>Jetzt sichern</button></form><a class="btn ghost" href="/settings">Verwalten</a></section>`
+    ? `<section class="bycs on"><div class="ic">ByCS</div><div class="tx"><b>BayernCloud Schule verbunden</b><span>${esc(bycs.user)} · Schule ${esc(bycs.school)} · Letztes Drive-Backup: <span data-last-backup>${bycs.lastBackup ? ago(bycs.lastBackup) : "noch keins"}</span></span></div>
+<form method="post" action="/backup/bycs" data-async data-busy="Sichere …" style="margin:0"><button>Jetzt sichern</button></form><a class="btn ghost" href="/settings">Verwalten</a></section>`
     : `<section class="bycs"><div class="ic">ByCS</div><div class="tx"><b>BayernCloud Schule verbinden</b><span>Dann sieht dein Agent deine Drive, Kurse und Abgabetermine, und jede Woche landet automatisch ein Backup in deiner Drive.</span></div><a class="btn" href="/settings">Verbinden</a></section>`;
   const tile = (key: string, label: string, inner: string) => `<form method="post" action="/new" style="margin:0"><input type="hidden" name="template" value="${key}"><button class="tpl" type="submit"><div class="pg">${inner}</div>${label}</button></form>`;
   const tplPreview = (n: number) => `<svg viewBox="0 0 132 170"><rect width="132" height="170" fill="#fff"/><rect x="14" y="16" width="${n ? 70 : 0}" height="9" rx="2" fill="#2f5496"/>${Array.from({ length: n ? 9 : 0 }, (_, i) => `<rect x="14" y="${36 + i * 13}" width="${[100, 92, 104, 60, 0, 98, 88, 70, 96][i]}" height="4" rx="2" fill="${i === 4 ? "none" : "#c4c7cc"}"/>`).join("")}${n === 2 ? `<rect x="14" y="98" width="104" height="30" fill="none" stroke="#bfc4cc"/><rect x="14" y="98" width="104" height="10" fill="#e8eaed"/>` : ""}</svg>`;
@@ -250,31 +253,75 @@ const r=e.target.closest("[data-rename]");if(r){const t=prompt("Neuer Titel:",r.
 </script><script src="/pwa.js" defer></script></body></html>`;
 }
 
-function settingsPage(origin: string, bycs: BycsStatus, msg = "", err = "") {
-  const field = (name: string, label: string, attrs = "") => `<label style="display:grid;gap:4px;margin-bottom:10px"><span class="mut">${label}</span><input name="${name}" ${attrs} style="width:100%"></label>`;
-  const connected = bycs ? `<p>Verbunden als <b>${esc(bycs.user)}</b> (Schule ${esc(bycs.school)})${bycs.source === "secrets" ? " über Cloudflare-Secrets" : ""}.</p>
-<p class="mut">Backups landen im Ordner „${esc(BACKUP_FOLDER)}“ deiner Drive, automatisch jeden Montag. Letztes ByCS-Backup: ${bycs.lastBackup ? new Date(bycs.lastBackup).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }) : "noch keins"}.</p>
-<div class="row"><form method="post" action="/backup/bycs" style="margin:0"><button class="primary">Jetzt Backup in die Drive</button></form>
-${bycs.source === "settings" ? `<form method="post" action="/settings/bycs/disconnect" style="margin:0" onsubmit="return confirm('ByCS trennen? Die gespeicherten Zugangsdaten werden gelöscht.')"><button>Trennen</button></form>` : ""}</div>`
-    : `<p>Verbinde deine BayernCloud Schule: Dann kann dein KI-Agent deine Drive und die Lernplattform lesen, und Nexus Light speichert jede Woche ein Backup in deine Drive.</p>
-<form method="post" action="/settings/bycs">
-${field("school", "Schulnummer (steht in deiner Drive-Adresse, z. B. <b>0284</b>.drive.bycs.de)", 'required inputmode="numeric" pattern="[0-9A-Za-z]{2,10}" placeholder="0284"')}
-${field("user", "ByCS-Benutzername", 'required autocomplete="username"')}
-${field("pass", "ByCS-Passwort", 'type="password" required autocomplete="current-password"')}
-<button class="primary">Verbinden und testen</button></form>
-<p class="mut">Das Passwort wird verschlüsselt in deinem eigenen Cloudflare-Konto gespeichert (Schlüssel aus deinem Nexus-Passwort) und nur für die Anmeldung bei der ByCS verwendet. Funktioniert nicht, wenn deine Schule Zwei-Faktor-Anmeldung nutzt.</p>`;
-  return shell("Einstellungen", `<div class="row" style="justify-content:space-between"><h1>Einstellungen</h1><a class="mut" href="/">← Dokumente</a></div>
-${msg ? `<div class="card" style="border-color:#188038">${msg}</div>` : ""}${err ? `<div class="card" style="border-color:#c5221f;color:#c5221f">${esc(err)}</div>` : ""}
-<div class="card"><h2 style="font-size:17px;margin:0 0 8px">ByCS (BayernCloud Schule)</h2>${connected}</div>
-<div class="card"><h2 style="font-size:17px;margin:0 0 8px">KI verbinden</h2><p>In ChatGPT oder Claude als Connector mit OAuth hinzufügen:</p><input readonly value="${esc(origin)}/mcp" onclick="this.select()" style="width:100%"></div>
-<div class="card"><h2 style="font-size:17px;margin:0 0 8px">Backup</h2><p><a href="/backup.zip">Alle Dokumente als .zip herunterladen</a></p></div>`);
+const SETTINGS_CSS = `
+.set{max-width:860px;margin:0 auto;padding:8px 20px 40px}
+.set h2{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:28px 0 8px}
+.list{background:var(--card);border:1px solid var(--line);border-radius:8px}
+.item{display:flex;align-items:center;gap:16px;padding:14px 16px;border-top:1px solid var(--line)}.item:first-child{border-top:0}
+.item .l{flex:1;min-width:0}.item .l b{display:block;font-weight:600}.item .l span{color:var(--mut);font-size:13px}
+.item .v{color:var(--mut);text-align:right;word-break:break-all}
+.item input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);width:min(260px,100%)}
+.b1,.b2{font:inherit;font-weight:600;padding:8px 14px;border-radius:6px;white-space:nowrap;cursor:pointer;text-decoration:none;display:inline-block}
+.b1{background:#2b579a;color:#fff;border:1px solid #2b579a}.b2{background:none;color:var(--fg);border:1px solid var(--line)}.b2.red{color:#c5221f}
+.status{display:flex;align-items:center;gap:8px;font-weight:600}.dot{width:10px;height:10px;border-radius:50%;background:#188038}.dot.off{background:#9aa0a6}
+.msg{margin:16px 0 0;padding:10px 14px;border-radius:6px;border-left:4px solid #188038;background:var(--card)}.msg.err{border-color:#c5221f;color:#c5221f}
+.foot2{margin-top:28px;color:var(--mut);font-size:12.5px;text-align:center}
+.set form{margin:0}
+.item code.url{display:block;margin-top:4px;font:12.5px ui-monospace,Consolas,monospace;color:var(--fg);overflow-wrap:anywhere}
+@media (max-width:640px){.item{flex-wrap:wrap}.item .l{flex-basis:100%}.item:has(.v) .l{flex-basis:auto}.item .v{text-align:right}.item form,.item input{width:100%}.item>.b1,.item>.b2,.item form .b1{width:100%;text-align:center}}
+`;
+
+function settingsPage(origin: string, bycs: BycsStatus, msg = "", err = "", name: string | null = null) {
+  const item = (label: string, desc: string, right: string) => `<div class="item"><div class="l"><b>${label}</b>${desc ? `<span>${desc}</span>` : ""}</div>${right}</div>`;
+  const bycsList = bycs
+    ? item(`<span class="status"><span class="dot"></span>Verbunden</span>`, `Dein Agent kann Drive und Lernplattform nutzen.`, `<form method="post" action="/backup/bycs" data-async data-busy="Sichere …"><button class="b1">Jetzt sichern</button></form>`)
+      + item("Benutzer", "", `<span class="v">${esc(bycs.user)}</span>`)
+      + item("Schule", "", `<span class="v">${esc(bycs.school)}</span>`)
+      + item("Letztes Backup", `Ordner „${esc(BACKUP_FOLDER)}“, automatisch jeden Montag`, `<span class="v" data-last-backup>${bycs.lastBackup ? new Date(bycs.lastBackup).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" }) : "noch keins"}</span>`)
+      + (bycs.source === "settings"
+        ? item("Trennen", "Löscht die gespeicherten Zugangsdaten.", `<form method="post" action="/settings/bycs/disconnect" onsubmit="return confirm('ByCS trennen?')"><button class="b2 red">Trennen</button></form>`)
+        : item("Anmeldung", "Kommt aus den Cloudflare-Secrets dieser Instanz.", ""))
+    : item(`<span class="status"><span class="dot off"></span>Nicht verbunden</span>`, "Dann sieht dein Agent Drive, Kurse und Abgabetermine, und jede Woche landet ein Backup in deiner Drive.", "")
+      + `<form method="post" action="/settings/bycs">`
+      + item("Schulnummer", "Steht in deiner Drive-Adresse, z. B. <b>0284</b>.drive.bycs.de", `<input name="school" required inputmode="numeric" pattern="[0-9A-Za-z]{2,10}" placeholder="0284">`)
+      + item("Benutzername", "", `<input name="user" required autocomplete="username">`)
+      + item("Passwort", "Wird verschlüsselt in deinem Cloudflare-Konto gespeichert.", `<input name="pass" type="password" required autocomplete="current-password">`)
+      + item("", "Geht nicht, wenn deine Schule Zwei-Faktor-Anmeldung nutzt.", `<button class="b1">Verbinden und testen</button>`)
+      + `</form>`;
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Einstellungen · Nexus Light</title>${PWA_HEAD}<style>${HOME_CSS}${SETTINGS_CSS}</style></head><body>
+<header class="bar"><a class="logo" href="/" title="Zu den Dokumenten">N</a><div class="name">Einstellungen</div><span style="flex:1"></span><nav><a href="/">← Dokumente</a></nav></header>
+<div class="set">
+${msg ? `<p class="msg">${msg}</p>` : ""}${err ? `<p class="msg err">${esc(err)}</p>` : ""}
+<h2>Profil</h2><div class="list">
+${item("Dein Name", `So erscheinst du in Dokumenten, auf allen Geräten.${bycs ? " Leer lassen: Name aus der ByCS." : ""}`, `<form method="post" action="/settings/name" data-async data-busy="…" style="display:flex;gap:8px"><input name="name" value="${esc(name ?? "")}" placeholder="z. B. Lena" maxlength="40"><button class="b2">Speichern</button></form>`)}
+</div>
+<h2>BayernCloud Schule</h2><div class="list">${bycsList}</div>
+<h2>KI verbinden</h2><div class="list">
+${item("MCP-Adresse", `In ChatGPT oder Claude als Connector mit OAuth hinzufügen.<code class="url">${esc(origin)}/mcp</code>`, `<button class="b2" onclick="navigator.clipboard.writeText('${esc(origin)}/mcp').then(()=>nlToast('Adresse kopiert'))">Kopieren</button>`)}
+</div>
+<h2>Daten</h2><div class="list">
+${item("Backup herunterladen", "Alle Dokumente als Word-Dateien, Memory und Dateien in einer .zip", `<a class="b2" href="/backup.zip">Herunterladen</a>`)}
+</div>
+<p class="foot2"><a href="https://neuro-net.net/nexus-feedback/rechtliches">Rechtliche Hinweise</a> · <a href="https://neuro-net.net/nexus-feedback/impressum">Impressum</a> · Deine Daten liegen in deinem eigenen Cloudflare-Konto.</p>
+</div><script src="/pwa.js" defer></script></body></html>`;
 }
 
-function editorPage(id: string, title: string, share: string | null) {
+function editorPage(id: string, title: string, share: string | null, owner: { name: string | null } | null) {
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#2b579a"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Nexus"><style>${EDITOR_CSS}</style></head><body>
-<div id="app" data-doc="${esc(id)}" data-title="${esc(title)}"${share ? ` data-share="${esc(share)}"` : ""}></div>
+<div id="app" data-doc="${esc(id)}" data-title="${esc(title)}"${share ? ` data-share="${esc(share)}"` : ""}${owner ? ` data-owner="1"${owner.name ? ` data-me="${esc(owner.name)}"` : ""}` : ""}></div>
 <script src="/editor.js"></script><script src="/pwa.js" defer></script></body></html>`;
+}
+
+/** The owner's name for cursors and comments: saved once (settings or editor), else taken from ByCS. */
+async function ownerName(env: Env): Promise<string | null> {
+  const store = storeStub(env);
+  const saved = await store.getMeta("ownerName");
+  if (saved) return saved;
+  const c = await store.bycsCreds();
+  const n = c ? await displayName(c) : null;
+  if (n) await store.setMeta("ownerName", n.slice(0, 40));
+  return n;
 }
 
 /** Everything that is not OAuth or MCP. Returns null for unknown paths. */
@@ -350,17 +397,34 @@ export async function handleWeb(req: Request, env: Env): Promise<Response | null
       try {
         const sp = await testLogin(creds);
         await store.bycsSave(creds);
-        return html(settingsPage(url.origin, await store.bycsStatus(), `ByCS verbunden. Gefunden: ${sp.length} Bereiche, z. B. ${sp.slice(0, 3).map((x) => esc(x.name)).join(", ")}.`));
+        return html(settingsPage(url.origin, await store.bycsStatus(), `ByCS verbunden: ${sp.length} Bereiche gefunden, z. B. ${sp.slice(0, 3).map((x) => esc(x.name)).join(", ")}.`));
       } catch (e) { return html(settingsPage(url.origin, null, "", `Anmeldung fehlgeschlagen: ${(e as Error).message}`), 400); }
     }
-    if (p === "/settings/bycs/disconnect" && req.method === "POST") { await store.bycsClear(); return html(settingsPage(url.origin, await store.bycsStatus(), "ByCS getrennt, Zugangsdaten gelöscht.")); }
-    return html(settingsPage(url.origin, await store.bycsStatus()));
+    if (p === "/settings/name" && req.method === "POST") {
+      const name = String((await req.formData()).get("name") || "").trim().slice(0, 40);
+      if (name) await store.setMeta("ownerName", name); else await store.setMeta("ownerName", "");
+      const now = name || (await ownerName(env)) || "";
+      return (req.headers.get("accept") || "").includes("application/json")
+        ? Response.json({ message: now ? `Gespeichert: ${now}` : "Gespeichert" })
+        : new Response(null, { status: 303, headers: { location: "/settings" } });
+    }
+    if (p === "/settings/bycs/disconnect" && req.method === "POST") { await store.bycsClear(); return html(settingsPage(url.origin, await store.bycsStatus(), "ByCS getrennt. Die Zugangsdaten sind gelöscht.")); }
+    return html(settingsPage(url.origin, await store.bycsStatus(), "", "", await ownerName(env)));
   }
 
   if (p === "/backup/bycs" && req.method === "POST") {
     if (!(await isOwner(req, env))) return html(landing(url.origin), 401);
-    try { return html(shell("Backup", `<h1>Backup gespeichert</h1><p>${esc(await store.backupToBycs())}</p><a href="/">Zurück</a>`)); }
-    catch (e) { return html(shell("Backup", `<h1>Backup fehlgeschlagen</h1><p>${esc((e as Error).message)}</p><a href="/">Zurück</a>`), 502); }
+    // Pages send this in the background (data-async) and show a toast; a plain form post still gets a page.
+    const wantsJson = (req.headers.get("accept") || "").includes("application/json");
+    try {
+      const where = await store.backupToBycs();
+      const size = where.match(/\(([^)]+)\)$/)?.[1] ?? "";
+      if (wantsJson) return Response.json({ message: `Backup in der ByCS-Drive gespeichert${size ? ` (${size})` : ""}`, update: { "[data-last-backup]": "gerade eben" } });
+      return html(shell("Backup", `<h1>Backup gespeichert</h1><p>${esc(where)}</p><a href="/">Zurück</a>`));
+    } catch (e) {
+      if (wantsJson) return Response.json({ error: `Backup fehlgeschlagen: ${(e as Error).message}` }, { status: 502 });
+      return html(shell("Backup", `<h1>Backup fehlgeschlagen</h1><p>${esc((e as Error).message)}</p><a href="/">Zurück</a>`), 502);
+    }
   }
 
   // Images: uploaded already shrunk by the browser, served with a long private cache.
@@ -392,8 +456,9 @@ export async function handleWeb(req: Request, env: Env): Promise<Response | null
     const doc = await store.docFind(id);
     if (!doc) return html(shell("Nexus Light", "<h1>Dokument nicht gefunden</h1><a href='/'>Zur Übersicht</a>"), 404);
     if (m[2]) return docStub(env, id).fetch(req);
-    const share = (await isOwner(req, env)) ? `${url.origin}/d/${id}?k=${await shareKey(env, id)}` : null;
-    return html(editorPage(id, doc.title, share));
+    const owner = await isOwner(req, env);
+    const share = owner ? `${url.origin}/d/${id}?k=${await shareKey(env, id)}` : null;
+    return html(editorPage(id, doc.title, share, owner ? { name: await ownerName(env) } : null));
   }
   return null;
 }

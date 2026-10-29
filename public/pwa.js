@@ -1,3 +1,33 @@
+// Toasts for background form posts: <form data-async data-busy="…"> posts with fetch, shows the
+// server's {message|error} as a toast and fills elements named in {update: {selector: text}}.
+(function () {
+  var box;
+  window.nlToast = function (text, bad) {
+    if (!box) { box = document.createElement("div"); box.setAttribute("role", "status"); box.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:grid;gap:8px;width:max-content;max-width:calc(100vw - 32px)"; document.body.append(box); }
+    var t = document.createElement("div");
+    t.textContent = text;
+    t.style.cssText = "padding:11px 16px;border-radius:10px;font:14px/1.35 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.25);color:#fff;background:" + (bad ? "#b3261e" : "#1f2328") + ";opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s";
+    box.append(t);
+    requestAnimationFrame(function () { t.style.opacity = "1"; t.style.transform = "none"; });
+    setTimeout(function () { t.style.opacity = "0"; setTimeout(function () { t.remove(); }, 250); }, bad ? 6000 : 3500);
+  };
+  document.addEventListener("submit", function (e) {
+    var f = e.target;
+    if (!f.hasAttribute || !f.hasAttribute("data-async")) return;
+    e.preventDefault();
+    var btn = f.querySelector("button"), label = btn && btn.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = f.getAttribute("data-busy") || "…"; }
+    fetch(f.action, { method: "POST", headers: { accept: "application/json" }, body: new FormData(f) })
+      .then(function (r) { return r.json().catch(function () { return { error: "Fehler " + r.status }; }); })
+      .then(function (j) {
+        nlToast(j.error || j.message || "Erledigt", !!j.error);
+        for (var sel in j.update || {}) document.querySelectorAll(sel).forEach(function (el) { el.textContent = j.update[sel]; });
+      })
+      .catch(function () { nlToast("Keine Verbindung", true); })
+      .finally(function () { if (btn) { btn.disabled = false; btn.textContent = label; } });
+  });
+})();
+
 // "Install as app" prompt: Chrome/Edge/Android via beforeinstallprompt, iPhone/iPad with a short hint.
 // "Später" hides it for 30 days.
 (function () {

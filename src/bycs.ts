@@ -125,6 +125,11 @@ export async function listFolder(c: Creds, space: string | undefined, p = "/") {
   return { space: sp.name, path: p, items };
 }
 
+/** The user's real name as ByCS knows it ("Ludwig Bischoff"), or null. */
+export async function displayName(c: Creds): Promise<string | null> {
+  try { return ((await graph(c, "/me")).displayName as string) || null; } catch { return null; }
+}
+
 /** Log in from scratch and list the Drive spaces: used by the settings page to check a login. */
 export async function testLogin(c: Creds) {
   driveCache.delete(key(c));

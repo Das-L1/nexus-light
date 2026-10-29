@@ -28,14 +28,17 @@ const h = (tag: string, attrs: Record<string, string> = {}, ...kids: (Node | str
 };
 
 // ---------- who am I ----------
+// Owner: name comes from the server (saved once, or the ByCS name). Guests: asked once per browser, in a
+// small bar instead of a blocking prompt; "Gast" until then.
 const COLORS = ["#2f6fdb", "#c2410c", "#7c3aed", "#0f766e", "#be123c", "#4d7c0f"];
 let me = { name: "", color: "" };
 try { me = JSON.parse(localStorage.getItem("nl-user") || "null") || me; } catch {}
-if (!me.name) {
-  me.name = (prompt("Dein Name (für die anderen im Dokument):") || "Gast").slice(0, 30);
-  me.color = COLORS[Math.floor(Math.random() * COLORS.length)];
-  try { localStorage.setItem("nl-user", JSON.stringify(me)); } catch {}
-}
+if (!me.color) me.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+if (app.dataset.me) me.name = app.dataset.me;
+const needsName = !me.name;
+if (needsName) me.name = "Gast";
+const saveMe = () => { try { localStorage.setItem("nl-user", JSON.stringify(me)); } catch {} };
+saveMe();
 
 // ---------- layout ----------
 
@@ -52,6 +55,7 @@ app.append(
     h("div", { id: "people" }),
     h("label", { class: "follow", title: "Ansicht folgt dem Agenten, sobald er schreibt" }, h("input", { type: "checkbox", id: "autofollow", checked: "" }), " Agent folgen")),
   h("div", { id: "ribbon" }),
+  ...(needsName ? [h("form", { id: "namebar" }, h("span", {}, "Wie heißt du? So sehen dich die anderen im Dokument."), h("input", { name: "n", placeholder: "Dein Name", maxlength: "40", required: "" }), h("button", {}, "OK"), h("button", { type: "button", class: "skip" }, "Später"))] : []),
   h("div", { id: "canvas" }, h("div", { id: "page" }), h("aside", { id: "comments", hidden: "" })),
   h("footer", { id: "statusbar" }, h("span", { id: "count" }), h("span", { id: "status" }, "verbinde …")),
 );
@@ -61,6 +65,19 @@ const ydoc = new Y.Doc();
 const proto = location.protocol === "https:" ? "wss" : "ws";
 const provider = new WebsocketProvider(`${proto}://${location.host}/d/${encodeURIComponent(docId)}`, "ws", ydoc);
 provider.awareness.setLocalStateField("user", { name: me.name, color: me.color });
+const namebar = document.getElementById("namebar") as HTMLFormElement | null;
+if (namebar) {
+  namebar.onsubmit = (e) => {
+    e.preventDefault();
+    const n = (namebar.elements.namedItem("n") as HTMLInputElement).value.trim().slice(0, 40);
+    if (!n) return;
+    me.name = n; saveMe();
+    provider.awareness.setLocalStateField("user", { name: me.name, color: me.color });
+    if (app.dataset.owner) fetch("/settings/name", { method: "POST", headers: { accept: "application/json" }, body: new URLSearchParams({ name: n }) });
+    namebar.remove();
+  };
+  (namebar.querySelector(".skip") as HTMLButtonElement).onclick = () => namebar.remove();
+}
 
 // ---------- commands ----------
 const mark = (t: MarkType): Command => toggleMark(t);
