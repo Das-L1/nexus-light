@@ -55,14 +55,6 @@ function landing(origin: string, error = "") {
 ${error ? `<p style="color:#c2410c">${esc(error)}</p>` : ""}</form>`);
 }
 
-function docList(origin: string, docs: { id: string; title: string; updated: string }[], bycs = false) {
-  const rows = docs.map((d) => `<div class="doc"><a href="/d/${d.id}">${esc(d.title)}</a><span class="mut">${new Date(d.updated).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} · <a href="/d/${d.id}/export.docx">.docx</a></span></div>`).join("");
-  return shell("Nexus Light", `<div class="row" style="justify-content:space-between"><h1>Dokumente</h1><span class="mut"><a href="/settings">Einstellungen</a> · <a href="/logout">abmelden</a></span></div>
-<form class="card row" method="post" action="/new"><input name="title" placeholder="Neues Dokument" required style="flex:1"><button class="primary">Erstellen</button></form>
-<div class="card">${rows || '<span class="mut">Noch keine Dokumente. Lege eins an oder bitte deinen Agenten darum.</span>'}</div>
-<div class="row" style="justify-content:space-between"><p class="mut">MCP: ${esc(origin)}/mcp</p><span class="row"><a class="mut" href="/backup.zip">Backup aller Dokumente (.zip)</a>${bycs ? `<form method="post" action="/backup/bycs" style="margin:0"><button class="mut" style="padding:4px 8px">Backup in ByCS-Drive</button></form>` : ""}</span></div>`);
-}
-
 // Word-like chrome: title bar, ribbon, grey canvas with an A4 sheet, status bar. Pure CSS; the
 // client (client/editor.ts) builds the controls into #app.
 const EDITOR_CSS = `
@@ -165,6 +157,99 @@ body{display:flex;flex-direction:column;background:var(--canvas);color:var(--fg)
 `;
 
 type BycsStatus = { source: string; school: string; user: string; lastBackup: string | null } | null;
+// ---------- home: Word/Docs-like start page ----------
+const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#2b579a"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Nexus">`;
+
+/** Starter content for "Neu erstellen". Plain markdown, inserted like an agent would. */
+export const TEMPLATES: Record<string, { label: string; title: string; md: string }> = {
+  referat: { label: "Referat", title: "Referat", md: "# Thema des Referats\n\nName · Klasse · Datum\n\n## Einleitung\n\nWorum geht es und warum ist das Thema wichtig?\n\n## Hauptteil\n\n- Erster Punkt\n- Zweiter Punkt\n- Dritter Punkt\n\n## Fazit\n\nDas Wichtigste in zwei, drei Sätzen.\n\n## Quellen\n\n1. Autor (Jahr). *Titel*. Link\n" },
+  quellen: { label: "Quellenanalyse", title: "Quellenanalyse", md: "# Quellenanalyse\n\n**Leitfrage:** …\n\n## Quelle 1\n\n| Merkmal | Angabe |\n| --- | --- |\n| Verfasser | |\n| Veröffentlicht | |\n| Art der Quelle | |\n\n### Inhalt\n\n- …\n\n### Perspektive und Absicht\n\n…\n\n### Einschränkungen\n\n- …\n\n## Vergleich der Quellen\n\n…\n" },
+};
+
+const HOME_CSS = `
+:root{--bg:#f3f4f6;--fg:#1f2328;--mut:#5f6368;--card:#fff;--line:#e3e5e8;--acc:#2b579a;--acc2:#185abd;--hover:#eef1f5;--bycs:#0b5cab;--bycs-bg:#e8f1fb}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#17181b;--fg:#e8eaed;--mut:#9aa0a6;--card:#202226;--line:#33363b;--acc:#7aa7e8;--acc2:#8ab4f8;--hover:#2a2d32;--bycs:#8ab4f8;--bycs-bg:#1d2a3b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,"Segoe UI",sans-serif}
+a{color:var(--acc2);text-decoration:none}button{font:inherit;cursor:pointer}
+.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:10px 20px;background:#2b579a;color:#fff}
+.bar .logo{width:32px;height:32px;border-radius:7px;background:#fff;color:#2b579a;display:grid;place-items:center;font-weight:800}
+.bar .name{font-size:17px;font-weight:600;white-space:nowrap}
+.bar input{flex:1;max-width:520px;margin:0 auto;padding:9px 14px;border:0;border-radius:8px;background:rgba(255,255,255,.95);color:#1f2328;font:inherit}
+.bar nav{display:flex;gap:6px}.bar nav a{color:#fff;padding:6px 10px;border-radius:6px;white-space:nowrap}.bar nav a:hover{background:rgba(255,255,255,.15)}
+main{max-width:1180px;margin:0 auto;padding:22px 20px 40px}
+h2{font-size:15px;font-weight:600;margin:26px 0 12px}
+.bycs{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:12px;background:var(--bycs-bg);border:1px solid color-mix(in srgb,var(--bycs) 30%,transparent)}
+.bycs .ic{width:44px;height:44px;flex:none;border-radius:10px;background:var(--bycs);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:.5px}
+.bycs .tx{flex:1;min-width:0}.bycs b{display:block;font-size:15px}.bycs span{color:var(--mut)}
+.bycs .btn,.bycs form button{background:var(--bycs);color:#fff;border:0;padding:9px 16px;border-radius:8px;font-weight:600;white-space:nowrap}
+.bycs .ghost{background:none;color:var(--bycs);border:1px solid var(--bycs)}
+.bycs.on .ic{background:#188038}.bycs.on{background:color-mix(in srgb,#188038 10%,var(--card));border-color:color-mix(in srgb,#188038 30%,transparent)}
+.new{display:flex;gap:18px;overflow-x:auto;padding-bottom:4px}
+.tpl{flex:none;width:132px;text-align:center;background:none;border:0;padding:0;color:var(--fg)}
+.tpl .pg{width:132px;height:170px;border-radius:6px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;margin-bottom:8px;transition:border-color .15s,box-shadow .15s;overflow:hidden}
+.tpl:hover .pg{border-color:var(--acc);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.tpl .plus{font-size:46px;color:var(--acc);font-weight:300}
+.tpl .pg svg{width:100%;height:100%}
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:18px}
+.doc{position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.doc:hover{border-color:var(--acc);box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.doc .th{display:block;aspect-ratio:210/297;max-height:250px;width:100%;background:#fff;border-bottom:1px solid var(--line);overflow:hidden}
+.doc .th img{width:100%;display:block}
+.doc .meta{display:flex;align-items:center;gap:8px;padding:9px 6px 9px 12px}
+.doc .meta .ic{width:20px;height:20px;flex:none;border-radius:4px;background:#2b579a;color:#fff;font:700 11px/20px system-ui;text-align:center}
+.doc .meta div{flex:1;min-width:0}.doc .t{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg)}
+.doc .d{font-size:12px;color:var(--mut)}
+.doc .more{background:none;border:0;color:var(--mut);width:30px;height:30px;border-radius:50%;font-size:18px}.doc .more:hover{background:var(--hover)}
+.menu{position:absolute;right:8px;bottom:46px;z-index:3;min-width:170px;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:4px;display:none}
+.menu.open{display:block}.menu a,.menu button{display:block;width:100%;text-align:left;padding:8px 10px;border:0;background:none;color:var(--fg);border-radius:6px}
+.menu a:hover,.menu button:hover{background:var(--hover)}.menu .del{color:#c5221f}
+.empty{padding:40px;text-align:center;color:var(--mut);background:var(--card);border:1px dashed var(--line);border-radius:12px}
+.foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:30px;color:var(--mut);font-size:12.5px}
+.foot code{background:var(--card);border:1px solid var(--line);padding:2px 6px;border-radius:5px;user-select:all}
+@media (max-width:640px){.bar{flex-wrap:wrap;padding:10px 14px}.bar input{order:3;flex-basis:100%;max-width:none}.bar .name{display:none}.bar nav{margin-left:auto}main{padding:16px 14px 30px}
+.bycs{flex-wrap:wrap;gap:12px}.bycs .tx{flex:1 1 calc(100% - 60px)}.bycs .btn,.bycs form{flex:1 1 auto;text-align:center}.bycs form button{width:100%}
+.grid{grid-template-columns:repeat(2,1fr);gap:12px}.tpl{width:108px}.tpl .pg{width:108px;height:140px}}
+`;
+
+const ago = (iso: string) => {
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  if (s < 60) return "gerade eben";
+  if (s < 3600) return `vor ${Math.floor(s / 60)} Min.`;
+  if (s < 86400) return `vor ${Math.floor(s / 3600)} Std.`;
+  if (s < 7 * 86400) return `vor ${Math.floor(s / 86400)} Tag${s >= 2 * 86400 ? "en" : ""}`;
+  return new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" });
+};
+
+function homePage(origin: string, docs: { id: string; title: string; updated: string }[], bycs: BycsStatus) {
+  const bycsCard = bycs
+    ? `<section class="bycs on"><div class="ic">ByCS</div><div class="tx"><b>BayernCloud Schule verbunden</b><span>${esc(bycs.user)} · Schule ${esc(bycs.school)} · Letztes Drive-Backup: ${bycs.lastBackup ? ago(bycs.lastBackup) : "noch keins"}</span></div>
+<form method="post" action="/backup/bycs" style="margin:0"><button>Jetzt sichern</button></form><a class="btn ghost" href="/settings">Verwalten</a></section>`
+    : `<section class="bycs"><div class="ic">ByCS</div><div class="tx"><b>BayernCloud Schule verbinden</b><span>Dann sieht dein Agent deine Drive, Kurse und Abgabetermine, und jede Woche landet automatisch ein Backup in deiner Drive.</span></div><a class="btn" href="/settings">Verbinden</a></section>`;
+  const tile = (key: string, label: string, inner: string) => `<form method="post" action="/new" style="margin:0"><input type="hidden" name="template" value="${key}"><button class="tpl" type="submit"><div class="pg">${inner}</div>${label}</button></form>`;
+  const tplPreview = (n: number) => `<svg viewBox="0 0 132 170"><rect width="132" height="170" fill="#fff"/><rect x="14" y="16" width="${n ? 70 : 0}" height="9" rx="2" fill="#2f5496"/>${Array.from({ length: n ? 9 : 0 }, (_, i) => `<rect x="14" y="${36 + i * 13}" width="${[100, 92, 104, 60, 0, 98, 88, 70, 96][i]}" height="4" rx="2" fill="${i === 4 ? "none" : "#c4c7cc"}"/>`).join("")}${n === 2 ? `<rect x="14" y="98" width="104" height="30" fill="none" stroke="#bfc4cc"/><rect x="14" y="98" width="104" height="10" fill="#e8eaed"/>` : ""}</svg>`;
+  const cards = docs.map((d) => `<article class="doc" data-title="${esc(d.title.toLowerCase())}">
+<a class="th" href="/d/${d.id}"><img src="/d/${d.id}/thumb.svg?v=${encodeURIComponent(d.updated)}" alt="" loading="lazy"></a>
+<div class="meta"><span class="ic">W</span><div><a class="t" href="/d/${d.id}">${esc(d.title)}</a><span class="d">${ago(d.updated)}</span></div><button class="more" aria-label="Mehr" data-menu>⋮</button></div>
+<div class="menu"><a href="/d/${d.id}">Öffnen</a><button data-rename="${d.id}" data-title="${esc(d.title)}">Umbenennen</button><a href="/d/${d.id}/export.docx">Als Word herunterladen</a><form method="post" action="/d/${d.id}/delete" style="margin:0" onsubmit="return confirm('„${esc(d.title).replace(/'/g, "")}“ endgültig löschen?')"><button class="del">Löschen</button></form></div></article>`).join("");
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nexus Light</title>${PWA_HEAD}<style>${HOME_CSS}</style></head><body>
+<header class="bar"><div class="logo">N</div><div class="name">Nexus Light</div><input id="q" type="search" placeholder="Dokumente durchsuchen" aria-label="Dokumente durchsuchen"><nav><a href="/settings">Einstellungen</a><a href="/logout">Abmelden</a></nav></header>
+<main>
+${bycsCard}
+<h2>Neu erstellen</h2>
+<div class="new">${tile("", "Leeres Dokument", '<span class="plus">+</span>')}${tile("referat", TEMPLATES.referat.label, tplPreview(1))}${tile("quellen", TEMPLATES.quellen.label, tplPreview(2))}</div>
+<div class="head"><h2>Zuletzt bearbeitet</h2><a href="/backup.zip" style="font-size:13px">Backup aller Dokumente (.zip)</a></div>
+${docs.length ? `<div class="grid" id="grid">${cards}</div><p class="empty" id="none" hidden>Kein Dokument passt zur Suche.</p>` : `<div class="empty">Noch keine Dokumente. Leg oben eins an oder bitte deinen KI-Agenten darum.</div>`}
+<div class="foot"><span>KI verbinden (ChatGPT/Claude, OAuth): <code>${esc(origin)}/mcp</code></span><span><a href="https://neuro-net.net/nexus-feedback/rechtliches">Rechtliche Hinweise</a> · <a href="https://neuro-net.net/nexus-feedback/impressum">Impressum</a> · Deine Daten liegen in deinem eigenen Cloudflare-Konto.</span></div>
+</main>
+<script>
+const q=document.getElementById("q"),grid=document.getElementById("grid"),none=document.getElementById("none");
+q&&q.addEventListener("input",()=>{if(!grid)return;const v=q.value.trim().toLowerCase();let n=0;for(const c of grid.children){const ok=!v||c.dataset.title.includes(v);c.hidden=!ok;n+=ok}none.hidden=n>0});
+document.addEventListener("click",(e)=>{const b=e.target.closest("[data-menu]");document.querySelectorAll(".menu.open").forEach((m)=>{if(!b||m!==b.closest(".doc").querySelector(".menu"))m.classList.remove("open")});if(b){b.closest(".doc").querySelector(".menu").classList.toggle("open");e.stopPropagation()}
+const r=e.target.closest("[data-rename]");if(r){const t=prompt("Neuer Titel:",r.dataset.title);if(t&&t.trim())fetch("/d/"+r.dataset.rename+"/title",{method:"POST",body:t.trim()}).then((x)=>x.ok&&location.reload())}});
+</script><script src="/pwa.js" defer></script></body></html>`;
+}
+
 function settingsPage(origin: string, bycs: BycsStatus, msg = "", err = "") {
   const field = (name: string, label: string, attrs = "") => `<label style="display:grid;gap:4px;margin-bottom:10px"><span class="mut">${label}</span><input name="${name}" ${attrs} style="width:100%"></label>`;
   const connected = bycs ? `<p>Verbunden als <b>${esc(bycs.user)}</b> (Schule ${esc(bycs.school)})${bycs.source === "secrets" ? " über Cloudflare-Secrets" : ""}.</p>
@@ -198,7 +283,7 @@ export async function handleWeb(req: Request, env: Env): Promise<Response | null
   const p = url.pathname;
   const store = storeStub(env);
 
-  if (p === "/") return (await isOwner(req, env)) ? html(docList(url.origin, await store.docList(), !!(await store.bycsStatus()))) : html(landing(url.origin));
+  if (p === "/") return (await isOwner(req, env)) ? html(homePage(url.origin, await store.docList(), await store.bycsStatus())) : html(landing(url.origin));
 
   if (p === "/login" && req.method === "POST") {
     const pw = String((await req.formData()).get("password") || "");
@@ -209,9 +294,24 @@ export async function handleWeb(req: Request, env: Env): Promise<Response | null
 
   if (p === "/new" && req.method === "POST") {
     if (!(await isOwner(req, env))) return html(landing(url.origin), 401);
-    const title = String((await req.formData()).get("title") || "Dokument").slice(0, 120);
-    const d = await store.docCreate(title);
+    const f = await req.formData();
+    const tpl = TEMPLATES[String(f.get("template") || "")];
+    const d = await store.docCreate(String(f.get("title") || tpl?.title || "Unbenanntes Dokument").slice(0, 120));
+    if (tpl) await docStub(env, d.id).insert({ name: "Vorlage", color: "#5f6368" }, tpl.md, undefined, false);
     return new Response(null, { status: 303, headers: { location: `/d/${d.id}` } });
+  }
+
+  // Preview of the first page for the document list; the ?v= (last change) makes it cacheable forever.
+  const th = p.match(/^\/d\/([\w-]{1,40})\/thumb\.svg$/);
+  if (th) {
+    if (!(await canOpen(req, env, th[1]))) return new Response("forbidden", { status: 403 });
+    return new Response(await docStub(env, th[1]).thumbnail(), { headers: { "content-type": "image/svg+xml", "cache-control": url.searchParams.has("v") ? "private, max-age=31536000, immutable" : "no-store", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'" } });
+  }
+  const del = p.match(/^\/d\/([\w-]{1,40})\/delete$/);
+  if (del && req.method === "POST") {
+    if (!(await isOwner(req, env))) return new Response("forbidden", { status: 403 });
+    if (await store.docFind(del[1])) { await docStub(env, del[1]).destroy(); await store.docDelete(del[1]); }
+    return new Response(null, { status: 303, headers: { location: "/" } });
   }
 
   const t = p.match(/^\/d\/([\w-]{1,40})\/title$/);

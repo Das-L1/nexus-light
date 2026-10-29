@@ -314,6 +314,72 @@ export class DocRoom extends DurableObject<Env> {
     return r ? { type: r.type as string, data: r.data as ArrayBuffer } : null;
   }
 
+  /** A small SVG of the first page for the document list: real headings and text, tables as grids, images as boxes. */
+  thumbnail() {
+    const W = 210, H = 297, X = 20, MAXW = W - 2 * X;
+    const out: string[] = [];
+    let y = 26;
+    const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+    const plain = (n: PMNode): string => n.text ?? (n.content ?? []).map(plain).join(n.type === "table_row" ? " " : "");
+    const lines = (t: string, size: number, maxw = MAXW) => {
+      const per = Math.max(8, Math.floor(maxw / (size * 0.5)));
+      const words = t.split(/\s+/).filter(Boolean), res: string[] = [];
+      let cur = "";
+      for (const w of words) { if ((cur + " " + w).trim().length > per) { if (cur) res.push(cur); cur = w; } else cur = (cur + " " + w).trim(); }
+      if (cur) res.push(cur);
+      return res;
+    };
+    const text = (t: string, size: number, color: string, weight = 400, x = X, maxw = MAXW, gap = 1.45) => {
+      for (const l of lines(t, size, maxw)) {
+        if (y > H - 14) return;
+        y += size;
+        out.push(`<text x="${x}" y="${y.toFixed(1)}" font-size="${size}" fill="${color}" font-weight="${weight}">${esc(l)}</text>`);
+        y += size * (gap - 1);
+      }
+    };
+    for (const b of yToJson(this.fragment).content ?? []) {
+      if (y > H - 14) break;
+      switch (b.type) {
+        case "heading": { const lvl = b.attrs?.level ?? 1; y += lvl === 1 ? 2 : 5; text(plain(b), lvl === 1 ? 13 : lvl === 2 ? 9.5 : 8, "#2f5496"); y += 3; break; }
+        case "paragraph": text(plain(b), 5.6, "#3c4043"); y += 3.5; break;
+        case "blockquote": { const y0 = y; text(plain(b), 5.6, "#5f6368", 400, X + 6, MAXW - 6); out.push(`<rect x="${X}" y="${y0 + 1}" width="1.6" height="${Math.max(4, y - y0)}" fill="#c9ced6"/>`); y += 3.5; break; }
+        case "bullet_list": case "ordered_list":
+          (b.content ?? []).forEach((li, i) => {
+            if (y > H - 14) return;
+            out.push(`<text x="${X + 2}" y="${(y + 5.6).toFixed(1)}" font-size="5.6" fill="#3c4043">${b.type === "bullet_list" ? "•" : i + 1 + "."}</text>`);
+            text(plain(li), 5.6, "#3c4043", 400, X + 9, MAXW - 9);
+          });
+          y += 3.5; break;
+        case "table": {
+          const rows = (b.content ?? []).slice(0, 8), cols = Math.max(1, ...rows.map((r) => (r.content ?? []).length)), cw = MAXW / cols, rh = 9;
+          rows.forEach((r, ri) => {
+            if (y + rh > H - 10) return;
+            if (ri === 0) out.push(`<rect x="${X}" y="${y}" width="${MAXW}" height="${rh}" fill="#f1f3f6"/>`);
+            (r.content ?? []).forEach((c, ci) => {
+              out.push(`<rect x="${(X + ci * cw).toFixed(1)}" y="${y}" width="${cw.toFixed(1)}" height="${rh}" fill="none" stroke="#bfc4cc" stroke-width=".5"/>`);
+              const t = plain(c), max = Math.floor(cw / 2.3);
+              out.push(`<text x="${(X + ci * cw + 2).toFixed(1)}" y="${y + 6}" font-size="4.6" fill="#3c4043" font-weight="${ri === 0 ? 700 : 400}">${esc(t.length > max ? t.slice(0, max - 1) + "…" : t)}</text>`);
+            });
+            y += rh;
+          });
+          y += 5; break;
+        }
+        case "image": {
+          const w = b.attrs?.width ? (parseFloat(b.attrs.width) / 100) * MAXW : MAXW * 0.7, h = Math.min(w * 0.6, H - 14 - y);
+          if (h > 8) {
+            const x = b.attrs?.align === "left" ? X : b.attrs?.align === "right" ? X + MAXW - w : X + (MAXW - w) / 2;
+            out.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="#e8eaed"/><path d="M${(x + w / 2 - 8).toFixed(1)} ${(y + h / 2 + 5).toFixed(1)}l5-6 4 4 3-3 4 5z" fill="#bdc1c6"/>`);
+            y += h + 5;
+          }
+          break;
+        }
+        case "horizontal_rule": out.push(`<rect x="${X}" y="${y + 2}" width="${MAXW}" height=".6" fill="#c9ced6"/>`); y += 6; break;
+        default: { const t = plain(b); if (t) { text(t, 5.6, "#3c4043"); y += 3.5; } }
+      }
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Calibri,Carlito,'Segoe UI',Arial,sans-serif"><rect width="${W}" height="${H}" fill="#fff"/>${out.join("")}</svg>`;
+  }
+
   /** The document as .docx, with its stored images embedded. */
   exportDocx(title: string) {
     const json = yToJson(this.fragment);
