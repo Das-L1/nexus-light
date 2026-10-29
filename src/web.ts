@@ -305,6 +305,7 @@ export async function handleWeb(req: Request, env: Env): Promise<Response | null
   const th = p.match(/^\/d\/([\w-]{1,40})\/thumb\.svg$/);
   if (th) {
     if (!(await canOpen(req, env, th[1]))) return new Response("forbidden", { status: 403 });
+    if (!(await store.docFind(th[1]))) return new Response("not found", { status: 404 });
     return new Response(await docStub(env, th[1]).thumbnail(), { headers: { "content-type": "image/svg+xml", "cache-control": url.searchParams.has("v") ? "private, max-age=31536000, immutable" : "no-store", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'" } });
   }
   const del = p.match(/^\/d\/([\w-]{1,40})\/delete$/);
